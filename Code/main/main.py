@@ -10,6 +10,7 @@ from Code.train.model import Model
 from Code.train.training import TrainModel
 from Code.Import_training_data.import_traing_data import DataLoader
 from Code.Optymalize_Model_Size.Bayes_optymalization import BayesOptimizer
+from Code.Visualization.network_visualization import show_architecture, show_training_progress
 
 # ----------------------------------------------------------------------
 # Load data once — shared by both manual and auto paths
@@ -24,7 +25,7 @@ output_size = 10                  # digits 0-9
 
 
 def train_with_config(num_layers, nodes, lr, epochs):
-    """Build a model from the given config, train it, and print test accuracy."""
+    """Build a model from the given config, train it, print test accuracy, return trainer."""
     layer_sizes = [input_size] + [nodes] * num_layers + [output_size]
     activations = ['relu'] * num_layers + ['softmax']
 
@@ -37,6 +38,13 @@ def train_with_config(num_layers, nodes, lr, epochs):
 
     test_acc = trainer.accuracy(X_test, y_test)
     print(f"\nTest Accuracy: {test_acc:.4f}")
+    return trainer, layer_sizes, activations
+
+
+def visualize(trainer, layer_sizes, activations):
+    """Show interactive Plotly charts for architecture and training progress."""
+    show_architecture(layer_sizes, activations)
+    show_training_progress(trainer.loss_history, trainer.val_acc_history)
 
 
 # ----------------------------------------------------------------------
@@ -67,6 +75,11 @@ if __name__ == "__main__":
         print(f"Val  Accuracy (from optimisation): {best_val_acc:.4f}")
         print(f"Test Accuracy                    : {test_acc:.4f}")
 
+        cfg = best_config
+        layer_sizes = [input_size] + [cfg['nodes']] * cfg['num_layers'] + [output_size]
+        activations = ['relu'] * cfg['num_layers'] + ['softmax']
+        final_trainer = best_trainer
+
     else:
         # --- Manual mode ---
         num_hidden_layers = int(input("Number of hidden layers: "))
@@ -77,4 +90,11 @@ if __name__ == "__main__":
         epochs = int(raw_epochs)  if raw_epochs else 100
         lr     = float(raw_lr)    if raw_lr     else 0.01
 
-        train_with_config(num_hidden_layers, nodes_per_layer, lr, epochs)
+        final_trainer, layer_sizes, activations = train_with_config(
+            num_hidden_layers, nodes_per_layer, lr, epochs
+        )
+
+    # --- Optional: show Plotly visualizations ---
+    raw_viz = input("\nShow Plotly visualizations? [y/N]: ").strip().lower()
+    if raw_viz == 'y':
+        visualize(final_trainer, layer_sizes, activations)

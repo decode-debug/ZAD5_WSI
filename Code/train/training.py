@@ -139,12 +139,18 @@ class TrainModel:
     # Training loop
     # ------------------------------------------------------------------
     def train(self, X_train, y_train, X_val, y_val, epochs, verbose=True):
+        self.loss_history    = []   # recorded every 10 epochs (for visualization)
+        self.val_acc_history = []
+
         for epoch in range(1, epochs + 1):
             loss = self.gradient_descent(X_train, y_train)
 
-            if verbose and epoch % 10 == 0:
+            if epoch % 10 == 0:
                 val_acc = self.accuracy(X_val, y_val)
-                print(f"Epoch {epoch:>4}/{epochs} | Loss: {loss:.4f} | Val Accuracy: {val_acc:.4f}")
+                self.loss_history.append(round(loss, 5))
+                self.val_acc_history.append(round(val_acc, 5))
+                if verbose:
+                    print(f"Epoch {epoch:>4}/{epochs} | Loss: {loss:.4f} | Val Accuracy: {val_acc:.4f}")
 
         if verbose:
             print("\nTraining complete.")
