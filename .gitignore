@@ -9,6 +9,7 @@ __pycache__/
 venv/
 env/
 ENV/
+.venv/
 
 # IDE
 .vscode/
@@ -19,3 +20,21 @@ ENV/
 # OS
 .DS_Store
 Thumbs.db
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# Plotly / Manim render output
+media/
+/media
+
+# Compiled / dist
+*.egg-info/
+dist/
+build/
+*.whl
+
+# Logs & temp
+*.log
+*.tmp
