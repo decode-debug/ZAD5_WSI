@@ -1,11 +1,11 @@
 import numpy as np
 
 class Node:
-    """Reprezentuje pojedynczy neuron i przechowuje jego stan."""
+    """Represents a single neuron and stores its state."""
     def __init__(self, num_inputs):
         self.num_inputs = num_inputs
 
-        # Stan neuronu: wektor wag (jeden dla każdego wejścia) i pojedynczy bias
+        # Neuron state: weight vector (one per input) and a single bias
         self.weights = np.random.randn(num_inputs)
         self.bias = 0.0
 
@@ -14,13 +14,13 @@ class Node:
 
 
 class Layer:
-    """Przechowuje informacje o całej warstwie oraz listę jej neuronów."""
+    """Stores information about an entire layer and its list of neurons."""
     def __init__(self, num_nodes, num_inputs, activation_name):
         self.num_nodes = num_nodes
         self.num_inputs = num_inputs
         self.activation_name = activation_name
 
-        # Warstwa przechowuje po prostu listę obiektów Node
+        # A layer simply holds a list of Node objects
         self.nodes = [Node(num_inputs) for _ in range(num_nodes)]
 
     def __repr__(self):
@@ -28,31 +28,31 @@ class Layer:
 
 
 class Model:
-    """Spina wszystko w całość, przechowując architekturę sieci."""
+    """Ties everything together by storing the network architecture."""
     def __init__(self, layer_sizes, activations):
-        # layer_sizes zawiera m.in. rozmiar wejścia, więc warstw jest o 1 mniej
+        # layer_sizes includes the input size, so there is one fewer layer than entries
         self.num_layers = len(layer_sizes) - 1
         self.layers = []
 
-        # Budowanie struktury warstwa po warstwie
+        # Build the structure layer by layer
         for i in range(self.num_layers):
-            num_inputs = layer_sizes[i]      # Rozmiar wyjścia poprzedniej warstwy
-            num_nodes = layer_sizes[i+1]     # Rozmiar obecnej warstwy
-            activation = activations[i]      # Nazwa funkcji aktywacji
+            num_inputs = layer_sizes[i]      # Output size of the previous layer
+            num_nodes = layer_sizes[i+1]     # Size of the current layer
+            activation = activations[i]      # Activation function name
 
-            # Tworzymy i zapisujemy warstwę
+            # Create and store the layer
             layer = Layer(num_nodes, num_inputs, activation)
             self.layers.append(layer)
 
     def summary(self):
-        """Wypisuje zebrane informacje o całej zbudowanej sieci."""
-        print("=== Struktura Modelu ===")
-        print(f"Całkowita liczba warstw (bez wejściowej): {self.num_layers}")
+        """Prints a summary of the entire network architecture."""
+        print("=== Model Summary ===")
+        print(f"Total number of layers (excluding input): {self.num_layers}")
 
         for i, layer in enumerate(self.layers):
-            print(f"  Warstwa {i+1}:")
-            print(f"    - Liczba neuronów (nodes): {layer.num_nodes}")
-            print(f"    - Liczba wejść do każdego neuronu: {layer.num_inputs}")
-            print(f"    - Funkcja aktywacji: {layer.activation_name}")
-        print("========================")
+            print(f"  Layer {i+1}:")
+            print(f"    - Number of neurons (nodes): {layer.num_nodes}")
+            print(f"    - Number of inputs per neuron: {layer.num_inputs}")
+            print(f"    - Activation function: {layer.activation_name}")
+        print("=====================")
 
