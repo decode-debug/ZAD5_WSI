@@ -10,7 +10,7 @@ from Code.train.model import Model
 from Code.train.training import TrainModel
 from Code.Import_training_data.import_traing_data import DataLoader
 from Code.Optymalize_Model_Size.Bayes_optymalization import BayesOptimizer
-from Code.Visualization.network_visualization import show_architecture, show_training_progress
+from Code.Visualization.network_visualization import show_architecture, show_architecture_3d, show_training_progress
 
 # ----------------------------------------------------------------------
 # Load data once — shared by both manual and auto paths
@@ -43,8 +43,19 @@ def train_with_config(num_layers, nodes, lr, epochs):
 
 def visualize(trainer, layer_sizes, activations):
     """Show interactive Plotly charts for architecture and training progress."""
-    show_architecture(layer_sizes, activations)
-    show_training_progress(trainer.loss_history, trainer.val_acc_history)
+    print("\nSelect visualization:")
+    print("  1 - 2D architecture diagram")
+    print("  2 - 3D architecture  (drag to orbit, scroll to zoom)")
+    print("  3 - Training progress (loss + accuracy curves)")
+    print("  4 - All of the above")
+    choice = input("Choice [1/2/3/4]: ").strip()
+
+    if choice in ('1', '4'):
+        show_architecture(layer_sizes, activations)
+    if choice in ('2', '4'):
+        show_architecture_3d(layer_sizes, activations)
+    if choice in ('3', '4'):
+        show_training_progress(trainer.loss_history, trainer.val_acc_history)
 
 
 # ----------------------------------------------------------------------

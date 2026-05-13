@@ -145,7 +145,7 @@ class TrainModel:
         for epoch in range(1, epochs + 1):
             loss = self.gradient_descent(X_train, y_train)
 
-            if epoch % 10 == 0:
+            if epoch % 5 == 0:
                 val_acc = self.accuracy(X_val, y_val)
                 self.loss_history.append(round(loss, 5))
                 self.val_acc_history.append(round(val_acc, 5))
