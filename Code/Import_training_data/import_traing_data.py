@@ -5,20 +5,20 @@ import numpy as np
 
 class DataLoader:
     def __init__(self):
-        # Wczytanie danych
+        # Data loading and preprocessing
         digits = load_digits()
         X, y = digits.data, digits.target
 
-        # Skalowanie danych (bardzo ważne dla stabilności uczenia!)
-        # Wartości pikseli to 0-16, dzieląc przez 16 sprowadzamy je do zakresu [0, 1]
+        # Data scaling (very important for training stability!)
+        # Pixel values are 0-16, dividing by 16 brings them to the range [0, 1]
         X = X / 16.0
 
-        # Podział 60% train, 40% temp
+        # Split 60% train, 40% temp
         X_train, X_temp, y_train, y_temp = train_test_split(
             X, y, test_size=0.4, stratify=y, random_state=42
         )
 
-        # Podział 40% temp na 20% val i 20% test
+        # Split 40% temp into 20% val and 20% test
         X_val, X_test, y_val, y_test = train_test_split(
             X_temp, y_temp, test_size=0.5, stratify=y_temp, random_state=42
         )

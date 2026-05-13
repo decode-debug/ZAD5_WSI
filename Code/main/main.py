@@ -59,15 +59,13 @@ if __name__ == "__main__":
             n_random_starts = max(5, n_iter // 5),
             n_iterations    = n_iter,
         )
-        best_config, best_score = optimizer.optimise()
+        best_config, best_val_acc, best_trainer = optimizer.optimise()
 
-        print("\nTraining final model with best config found by optimiser...")
-        train_with_config(
-            num_layers = best_config['num_layers'],
-            nodes      = best_config['nodes'],
-            lr         = best_config['lr'],
-            epochs     = best_config['epochs'],
-        )
+        # Reuse the already-trained model — no re-training from scratch
+        print("\nEvaluating best model found during optimisation...")
+        test_acc = best_trainer.accuracy(X_test, y_test)
+        print(f"Val  Accuracy (from optimisation): {best_val_acc:.4f}")
+        print(f"Test Accuracy                    : {test_acc:.4f}")
 
     else:
         # --- Manual mode ---

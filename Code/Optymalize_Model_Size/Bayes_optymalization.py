@@ -177,7 +177,9 @@ class BayesOptimizer:
             epochs=config['epochs'],
             verbose=False,   # suppress per-epoch output during search
         )
-        return trainer.accuracy(self.X_val, self.y_val)
+        score = trainer.accuracy(self.X_val, self.y_val)
+        # Return both so the best trained model can be reused without re-training
+        return score, trainer
 
     # -------------------------------------------------------------------
     # Run the full optimisation loop
@@ -215,12 +217,12 @@ class BayesOptimizer:
                 f"layers={config['num_layers']}, nodes={config['nodes']}, "
                 f"lr={config['lr']:.4f}, epochs={config['epochs']}"
             )
-            score = self._evaluate(config)
+            score, trainer = self._evaluate(config)
             print(f"  → Val accuracy: {score:.4f}")
 
-            self.history.append({'config': config, 'score': score})
+            self.history.append({'config': config, 'score': score, 'trainer': trainer})
 
-        # --- Return the single best config ---
+        # --- Return the single best config and its already-trained model ---
         best = max(self.history, key=lambda h: h['score'])
         print("\n" + "=" * 60)
         print("  Best configuration found:")
@@ -230,4 +232,4 @@ class BayesOptimizer:
         print(f"    Epochs        : {best['config']['epochs']}")
         print(f"    Val accuracy  : {best['score']:.4f}")
         print("=" * 60)
-        return best['config'], best['score']
+        return best['config'], best['score'], best['trainer']
