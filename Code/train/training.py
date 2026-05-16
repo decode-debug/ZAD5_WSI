@@ -12,47 +12,10 @@ from Code.train.model import Model
 
 
 class TrainModel:
-    def __init__(self, model, learning_rate=0.01):
+    def __init__(self, model: Model, learning_rate=0.01):
+        """"Trainer that implements forward and backward passes, and updates weights."""
         self.model = model
         self.learning_rate = learning_rate
-
-    def _get_weights(self, layer):
-        W = np.array([node.weights for node in layer.nodes])
-        b = np.array([node.bias    for node in layer.nodes])
-        return W, b
-
-    def _set_weights(self, layer, W, b):
-        for i, node in enumerate(layer.nodes):
-            node.weights = W[i]
-            node.bias    = b[i]
-
-    def _relu(self, z):
-        return np.maximum(0, z)
-
-    def _softmax(self, z):
-        shifted = z - np.max(z, axis=1, keepdims=True)
-        exp_z   = np.exp(shifted)
-        return exp_z / exp_z.sum(axis=1, keepdims=True)
-
-    def _forward(self, X):
-        current = X
-        self.cache = []
-
-        for layer in self.model.layers:
-            W, b = self._get_weights(layer)
-
-            a_in = current
-            z    = current @ W.T + b
-
-            if layer.activation_name == 'softmax':
-                a_out = self._softmax(z)
-            else:
-                a_out = self._relu(z)
-
-            self.cache.append((a_in, z, a_out))
-            current = a_out
-
-        return current
 
     def _cross_entropy_loss(self, y_pred, y_true):
         n = len(y_true)
@@ -61,51 +24,56 @@ class TrainModel:
         return loss
 
     def _backward(self, y_pred, y_true):
+        """Compute gradients for all layers using backpropagation."""
         n = len(y_true)
         gradients = []
 
-        dout = y_pred.copy()
-        dout[np.arange(n), y_true] -= 1
-        dout /= n
+        # Initialize the error for the output layer
+        error = y_pred.copy()
+        error[np.arange(n), y_true] -= 1
+        error /= n
 
+        # Backpropagate through layers in reverse order
         for i in reversed(range(len(self.model.layers))):
-            a_in, z, a_out = self.cache[i]
+            a_in, z, a_out = self.model.cache[i]
 
-
-            dW = dout.T @ a_in
-            db = np.sum(dout, axis=0)
+            # Compute gradients for weights and biases
+            dW = error.T @ a_in
+            db = np.sum(error, axis=0)
             gradients.append((i, dW, db))
 
+            # Update error for the next layer down (if not at input layer)
             if i > 0:
-                W, _ = self._get_weights(self.model.layers[i])
-                _, z_prev, _ = self.cache[i - 1]
+                W, _ = self.model.layers[i]._get_weights()
+                _, z_prev, _ = self.model.cache[i - 1]
 
-                dout = (dout @ W) * (z_prev > 0)
+                error = (error @ W) * (z_prev > 0)
 
         return gradients
 
     def gradient_descent(self, X, y):
-        y_pred = self._forward(X)
+        """Perform one step of gradient descent and return the loss."""
+        # Forward pass to get predictions
+        y_pred = self.model._forward(X)
 
+        # Compute loss
         loss = self._cross_entropy_loss(y_pred, y)
 
+        # Backward pass to get gradients
         gradients = self._backward(y_pred, y)
 
+        # Update weights for each layer
         for layer_index, dW, db in gradients:
             layer = self.model.layers[layer_index]
-            W, b  = self._get_weights(layer)
+            W, b  = layer._get_weights()
             W    -= self.learning_rate * dW
             b    -= self.learning_rate * db
-            self._set_weights(layer, W, b)
+            layer._set_weights(W, b)
 
         return loss
 
-    def accuracy(self, X, y):
-        y_pred      = self._forward(X)
-        predictions = np.argmax(y_pred, axis=1)
-        return np.mean(predictions == y)
-
     def train(self, X_train, y_train, X_val, y_val, epochs, verbose=True):
+        """Train the model for a specified number of epochs."""
         self.loss_history    = []
         self.val_acc_history = []
 
@@ -113,7 +81,7 @@ class TrainModel:
             loss = self.gradient_descent(X_train, y_train)
 
             if epoch % 5 == 0:
-                val_acc = self.accuracy(X_val, y_val)
+                val_acc = self.model.accuracy(X_val, y_val)
                 self.loss_history.append(round(loss, 5))
                 self.val_acc_history.append(round(val_acc, 5))
                 if verbose:

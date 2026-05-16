@@ -5,20 +5,18 @@ import numpy as np
 
 class DataLoader:
     def __init__(self):
-        # Data loading and preprocessing
         digits = load_digits()
         X, y = digits.data, digits.target
 
-        # Data scaling (very important for training stability!)
         # Pixel values are 0-16, dividing by 16 brings them to the range [0, 1]
         X = X / 16.0
 
-        # Split 60% train, 40% temp
+        # Split 70% train, 30% temp (which will be further split into val and test)
         X_train, X_temp, y_train, y_temp = train_test_split(
-            X, y, test_size=0.4, stratify=y, random_state=42
+            X, y, test_size=0.3, stratify=y, random_state=42
         )
 
-        # Split 40% temp into 20% val and 20% test
+        # Split 30% temp into 15% val and 15% test
         X_val, X_test, y_val, y_test = train_test_split(
             X_temp, y_temp, test_size=0.5, stratify=y_temp, random_state=42
         )

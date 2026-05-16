@@ -23,26 +23,80 @@ class Layer:
         # A layer simply holds a list of Node objects
         self.nodes = [Node(num_inputs) for _ in range(num_nodes)]
 
+    def _get_weights(self):
+        """Extracts the weight matrix and bias vector for the entire layer."""
+        W = np.array([node.weights for node in self.nodes])
+        b = np.array([node.bias    for node in self.nodes])
+        return W, b
+
+    def _set_weights(self, W, b):
+        """Sets the weight matrix and bias vector for the entire layer."""
+        for i, node in enumerate(self.nodes):
+            node.weights = W[i]
+            node.bias    = b[i]
+
     def __repr__(self):
         return f"Layer(nodes={self.num_nodes}, inputs={self.num_inputs}, activation='{self.activation_name}')"
 
-
 class Model:
     """Ties everything together by storing the network architecture."""
-    def __init__(self, layer_sizes, activations):
-        # layer_sizes includes the input size, so there is one fewer layer than entries
+    def __init__(self, layer_sizes: list[int], activations: list[str]):
+        """Initializes the model architecture based on the provided layer sizes and activation functions."""
         self.num_layers = len(layer_sizes) - 1
         self.layers = []
+        self.cache = None  # Will be used to store intermediate values during forward pass for backpropagation
 
         # Build the structure layer by layer
         for i in range(self.num_layers):
-            num_inputs = layer_sizes[i]      # Output size of the previous layer
-            num_nodes = layer_sizes[i+1]     # Size of the current layer
-            activation = activations[i]      # Activation function name
+            num_inputs = layer_sizes[i]
+            num_nodes = layer_sizes[i+1]
+            activation = activations[i]
 
             # Create and store the layer
             layer = Layer(num_nodes, num_inputs, activation)
             self.layers.append(layer)
+
+    def _relu(self, z):
+        """ReLU activation function: f(z) = max(0, z)"""
+        return np.maximum(0, z)
+
+    def _softmax(self, z):
+        """Softmax activation function for classification."""
+        # Shift the input to prevent numerical overflow
+        # z Matrix - z_maximum Vector - Broadcasting
+        shifted = z - np.max(z, axis=1, keepdims=True)
+        # Compute exponentials and normalize to get probabilities
+        exp_z   = np.exp(shifted)
+        return exp_z / exp_z.sum(axis=1, keepdims=True)
+
+    def _forward(self, X):
+        """Performs a forward pass through the network and stores intermediate values for backpropagation."""
+        A = X  # X becomes the input to the first layer
+        self.cache = []
+
+        for layer in self.layers:
+            W, b = layer._get_weights()
+
+            A_prev = A  # Save the input to this layer for backpropagation
+
+            # 1. Linear equation: Z = A_prev * W^T + b
+            Z = A_prev @ W.T + b
+
+            # 2. Activation equation (non-linear): A = g(Z)
+            if layer.activation_name == 'softmax':
+                A = self._softmax(Z)
+            else:
+                A = self._relu(Z)
+
+            # Save the mathematical steps to memory: input (A_prev), raw state (Z), and output (A)
+            self.cache.append((A_prev, Z, A))
+
+        return A  # Return the final activation matrix from the last layer
+
+    def accuracy(self, X, y):
+        y_pred      = self._forward(X)
+        predictions = np.argmax(y_pred, axis=1)
+        return np.mean(predictions == y)
 
     def summary(self):
         """Prints a summary of the entire network architecture."""

@@ -119,6 +119,7 @@ class BayesOptimizer:
             'lr'        : lr_range,
             'epochs'    : epochs_range,
         }
+        self.max_layers      = layers_range[1]   # upper bound used for fixed-length encoding
         self.n_random_starts = n_random_starts
         self.n_iterations    = n_iterations
         self.n_candidates    = n_candidates
@@ -137,23 +138,27 @@ class BayesOptimizer:
         lo_lr, hi_lr = self.bounds['lr']
         lo_e, hi_e = self.bounds['epochs']
 
-        return np.array([
+        vec = [
             (config['num_layers'] - lo_l)  / max(hi_l  - lo_l,  1),
-            (config['nodes']      - lo_n)  / max(hi_n  - lo_n,  1),
             (config['lr']         - lo_lr) / (hi_lr - lo_lr),
             (config['epochs']     - lo_e)  / max(hi_e  - lo_e,  1),
-        ])
+        ]
+        for i in range(1, self.max_layers + 1):
+            vec.append((config[f'nodes_{i}'] - lo_n) / max(hi_n - lo_n, 1))
+        return np.array(vec)
 
     # -------------------------------------------------------------------
     # Draw a uniformly random config from the search space
     # -------------------------------------------------------------------
     def _random_config(self):
-        return {
+        cfg = {
             'num_layers': np.random.randint(*self.bounds['num_layers']),
-            'nodes'     : np.random.randint(*self.bounds['nodes']),
             'lr'        : np.random.uniform(*self.bounds['lr']),
             'epochs'    : np.random.randint(*self.bounds['epochs']),
         }
+        for i in range(1, self.max_layers + 1):
+            cfg[f'nodes_{i}'] = np.random.randint(*self.bounds['nodes'])
+        return cfg
 
     # -------------------------------------------------------------------
     # Train a model with a given config, return validation accuracy
@@ -162,11 +167,8 @@ class BayesOptimizer:
         input_size  = self.X_train.shape[1]
         output_size = 10
 
-        layer_sizes = (
-            [input_size]
-            + [config['nodes']] * config['num_layers']
-            + [output_size]
-        )
+        hidden_sizes = [config[f'nodes_{i+1}'] for i in range(config['num_layers'])]
+        layer_sizes = [input_size] + hidden_sizes + [output_size]
         activations = ['relu'] * config['num_layers'] + ['softmax']
 
         model   = Model(layer_sizes, activations)
@@ -177,7 +179,7 @@ class BayesOptimizer:
             epochs=config['epochs'],
             verbose=False,   # suppress per-epoch output during search
         )
-        score = trainer.accuracy(self.X_val, self.y_val)
+        score = trainer.model.accuracy(self.X_val, self.y_val)
         # Return both so the best trained model can be reused without re-training
         return score, trainer
 
@@ -212,9 +214,10 @@ class BayesOptimizer:
                 how         = "GP-guided"
 
             # --- Evaluate the chosen config ---
+            nodes_str = ', '.join(str(config[f'nodes_{i+1}']) for i in range(config['num_layers']))
             print(
                 f"\n[{iteration:>2}/{self.n_iterations}] {how} | "
-                f"layers={config['num_layers']}, nodes={config['nodes']}, "
+                f"layers={config['num_layers']}, nodes=[{nodes_str}], "
                 f"lr={config['lr']:.4f}, epochs={config['epochs']}"
             )
             score, trainer = self._evaluate(config)
@@ -226,8 +229,9 @@ class BayesOptimizer:
         best = max(self.history, key=lambda h: h['score'])
         print("\n" + "=" * 60)
         print("  Best configuration found:")
+        best_nodes_str = ', '.join(str(best['config'][f'nodes_{i+1}']) for i in range(best['config']['num_layers']))
         print(f"    Hidden layers : {best['config']['num_layers']}")
-        print(f"    Nodes/layer   : {best['config']['nodes']}")
+        print(f"    Nodes/layer   : [{best_nodes_str}]")
         print(f"    Learning rate : {best['config']['lr']:.5f}")
         print(f"    Epochs        : {best['config']['epochs']}")
         print(f"    Val accuracy  : {best['score']:.4f}")
