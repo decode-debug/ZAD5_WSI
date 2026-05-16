@@ -1,9 +1,13 @@
 # Python cache
 __pycache__/
+**/__pycache__/
 *.pyc
 *.pyo
 *.pyd
 .Python
+
+# Init files
+__init__.py
 
 # Virtual environments
 venv/
