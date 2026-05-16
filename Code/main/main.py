@@ -15,10 +15,10 @@ from Code.Visualization.network_visualization import show_architecture, show_arc
 # ----------------------------------------------------------------------
 # Load data once — shared by both manual and auto paths
 # ----------------------------------------------------------------------
-loader = DataLoader()
-X_train, y_train = loader.get_train_data()
-X_val,   y_val   = loader.get_val_data()
-X_test,  y_test  = loader.get_test_data()
+X_train, y_train = DataLoader.get_train_data()
+X_val,   y_val   = DataLoader.get_val_data()
+X_test,  y_test  = DataLoader.get_test_data()
+
 
 input_size  = X_train.shape[1]    # 64 pixel features
 output_size = 10                  # digits 0-9
