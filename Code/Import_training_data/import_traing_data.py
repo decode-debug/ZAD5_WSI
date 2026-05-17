@@ -1,4 +1,5 @@
 import numpy as np
+from scipy.ndimage import maximum_filter, shift
 from sklearn.datasets import load_digits
 from sklearn.model_selection import train_test_split
 from scipy.ndimage import maximum_filter
@@ -96,6 +97,26 @@ class DataLoader:
         return thickened_1d
 
     @staticmethod
+    def shift_image(image_1d, dy, dx):
+        """
+        Shifts the image by dy (vertical) and dx (horizontal) pixels.
+        Empty spaces are filled with 0 (black).
+        """
+        image_2d = image_1d.reshape(8, 8)
+        shifted_2d = shift(image_2d, shift=[dy, dx], mode='constant', cval=0)
+        return shifted_2d.flatten()
+
+    @staticmethod
+    def add_gaussian_noise(image_1d, std=1.5):
+        """
+        Adds random noise from a normal distribution.
+        Keeps values clipped within the 0-16 bounds.
+        """
+        noise = np.random.normal(loc=0.0, scale=std, size=image_1d.shape)
+        noisy_image = image_1d + noise
+        return np.clip(noisy_image, 0, 16)
+
+    @staticmethod
     def normalize_images(images):
         """Normalizes pixel values from [0, 16] to [0.0, 1.0]."""
         images_float = np.array(images, dtype=float)
@@ -125,6 +146,21 @@ class DataLoader:
             # 3. Thicken
             thickened_img = DataLoader.thicken_image(img)
             augmented_images.append(thickened_img)
+            augmented_labels.append(label)
+
+            # 4. Shift (Randomly by 1 pixel in X and/or Y direction)
+            # np.random.choice([-1, 0, 1]) picks a random shift direction
+            dy, dx = np.random.choice([-1, 0, 1], size=2)
+            # Ensure it actually shifts (if both are 0, force a shift)
+            if dy == 0 and dx == 0:
+                dy = 1
+            shifted_img = DataLoader.shift_image(img, dy=dy, dx=dx)
+            augmented_images.append(shifted_img)
+            augmented_labels.append(label)
+
+            # 5. Gaussian Noise
+            noisy_img = DataLoader.add_gaussian_noise(img, std=1.5)
+            augmented_images.append(noisy_img)
             augmented_labels.append(label)
 
         return np.array(augmented_images), np.array(augmented_labels)

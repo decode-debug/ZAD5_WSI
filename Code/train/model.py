@@ -98,6 +98,59 @@ class Model:
         predictions = np.argmax(y_pred, axis=1)
         return np.mean(predictions == y)
 
+    # -------------------------------------------------------------------
+    # Serialisation
+    # -------------------------------------------------------------------
+    def save(self, path: str):
+        """
+        Save the model weights, biases, and architecture to a .npz file.
+
+        Parameters
+        ----------
+        path : str   File path (with or without the .npz extension).
+        """
+        arrays = {}
+        layer_sizes  = [self.layers[0].num_inputs]
+        activations  = []
+
+        for i, layer in enumerate(self.layers):
+            W, b = layer._get_weights()
+            arrays[f'W_{i}'] = W
+            arrays[f'b_{i}'] = b
+            layer_sizes.append(layer.num_nodes)
+            activations.append(layer.activation_name)
+
+        arrays['layer_sizes'] = np.array(layer_sizes, dtype=np.int32)
+        arrays['activations'] = np.array(activations, dtype=object)
+
+        np.savez(path, **arrays)
+
+    @classmethod
+    def load(cls, path: str) -> 'Model':
+        """
+        Load a model that was previously saved with :meth:`save`.
+
+        Parameters
+        ----------
+        path : str   Path to the .npz file (extension optional).
+
+        Returns
+        -------
+        Model
+        """
+        if not path.endswith('.npz'):
+            path = path + '.npz'
+
+        data        = np.load(path, allow_pickle=True)
+        layer_sizes = data['layer_sizes'].tolist()
+        activations = data['activations'].tolist()
+
+        model = cls(layer_sizes, activations)
+        for i, layer in enumerate(model.layers):
+            layer._set_weights(data[f'W_{i}'], data[f'b_{i}'])
+
+        return model
+
     def summary(self):
         """Prints a summary of the entire network architecture."""
         print("=== Model Summary ===")

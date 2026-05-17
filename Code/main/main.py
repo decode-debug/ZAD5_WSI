@@ -84,23 +84,35 @@ if __name__ == "__main__":
         )
         best_config, best_val_acc, best_trainer = optimizer.optimise()
 
-        print("\nEvaluating best model found during optimisation...")
-        test_acc = best_trainer.model.accuracy(X_test, y_test)
-        # train model multiple times with the same config to get an best one
-        test_accs = []
+        print("\nRe-training 5× with the best config to reduce randomness...")
+        best_nodes = [best_config[f'nodes_{i+1}'] for i in range(best_config['num_layers'])]
+        best_val_acc_retrain = -1
         for _ in range(5):
-            best_nodes = [best_config[f'nodes_{i+1}'] for i in range(best_config['num_layers'])]
-            trainer, _, _ = train_with_config(
-                best_config['num_layers'], best_nodes, best_config['lr'], best_config['epochs'], batch_size=best_config.get('batch_size', 32), config=1
+            trainer, _ls, _acts = train_with_config(
+                best_config['num_layers'], best_nodes, best_config['lr'], best_config['epochs'],
+                batch_size=best_config['batch_size'], config=1,
             )
-            test_accs.append(trainer.model.accuracy(X_test, y_test))
-        best_test_acc = max(test_accs)
-        print(f"Val  Accuracy (from optimisation): {best_val_acc:.4f}")
+            acc = trainer.model.accuracy(X_val, y_val)
+            if acc > best_val_acc_retrain:
+                best_val_acc_retrain = acc
+                best_trainer         = trainer
+
+        best_test_acc = best_trainer.model.accuracy(X_test, y_test)
+        print(f"Val  Accuracy (best of 5 re-runs): {best_val_acc_retrain:.4f}")
         print(f"Test Accuracy                    : {best_test_acc:.4f}")
         print(f"Batch size                       : {best_config['batch_size']}")
 
+        # --- Optional: save model to disk ---
+        raw_save = input("\nSave best model to disk? [y/N]: ").strip().lower()
+        if raw_save == 'y':
+            MODELS_DIR = ROOT_DIR / 'saved_models'
+            MODELS_DIR.mkdir(exist_ok=True)
+            save_path = MODELS_DIR / 'bayes_best_model'
+            best_trainer.model.save(str(save_path))
+            print(f"Model saved to {save_path}.npz")
+
         cfg = best_config
-        hidden = [cfg[f'nodes_{i+1}'] for i in range(cfg['num_layers'])]
+        hidden = best_nodes
         layer_sizes = [input_size] + hidden + [output_size]
         activations = ['relu'] * cfg['num_layers'] + ['softmax']
         final_trainer = best_trainer
