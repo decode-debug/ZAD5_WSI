@@ -15,6 +15,7 @@ Search space (tunable at construction time):
   - nodes_per_layer    : neurons in each hidden layer
   - learning_rate      : step size for gradient descent
   - epochs             : training length
+  - batch_size         : mini-batch size used during training
 """
 
 import numpy as np
@@ -104,6 +105,7 @@ class BayesOptimizer:
         nodes_range       = (16, 256),  # min/max nodes per hidden layer
         lr_range          = (1e-3, 0.1),
         epochs_range      = (50, 200),
+        batch_size_range  = (16, 128),
         # Budget
         n_random_starts   = 5,          # pure random trials before using GP
         n_iterations      = 20,         # total trials (random + GP-guided)
@@ -118,6 +120,7 @@ class BayesOptimizer:
             'nodes'     : nodes_range,
             'lr'        : lr_range,
             'epochs'    : epochs_range,
+            'batch_size': batch_size_range,
         }
         self.max_layers      = layers_range[1]   # upper bound used for fixed-length encoding
         self.n_random_starts = n_random_starts
@@ -137,11 +140,13 @@ class BayesOptimizer:
         lo_n, hi_n = self.bounds['nodes']
         lo_lr, hi_lr = self.bounds['lr']
         lo_e, hi_e = self.bounds['epochs']
+        lo_b, hi_b = self.bounds['batch_size']
 
         vec = [
             (config['num_layers'] - lo_l)  / max(hi_l  - lo_l,  1),
             (config['lr']         - lo_lr) / (hi_lr - lo_lr),
             (config['epochs']     - lo_e)  / max(hi_e  - lo_e,  1),
+            (config['batch_size'] - lo_b)  / max(hi_b  - lo_b,  1),
         ]
         for i in range(1, self.max_layers + 1):
             vec.append((config[f'nodes_{i}'] - lo_n) / max(hi_n - lo_n, 1))
@@ -155,7 +160,10 @@ class BayesOptimizer:
             'num_layers': np.random.randint(*self.bounds['num_layers']),
             'lr'        : np.random.uniform(*self.bounds['lr']),
             'epochs'    : np.random.randint(*self.bounds['epochs']),
-            'batch_size': np.random.randint(16, 129),
+            'batch_size': np.random.randint(
+                self.bounds['batch_size'][0],
+                self.bounds['batch_size'][1] + 1,
+            ),
         }
         for i in range(1, self.max_layers + 1):
             cfg[f'nodes_{i}'] = np.random.randint(*self.bounds['nodes'])
@@ -178,7 +186,7 @@ class BayesOptimizer:
             self.X_train, self.y_train,
             self.X_val,   self.y_val,
             epochs=config['epochs'],
-            batch_size=config.get('batch_size', 32),
+            batch_size=config['batch_size'],
             verbose=False,   # suppress per-epoch output during search
         )
         score = trainer.model.accuracy(self.X_val, self.y_val)
@@ -190,7 +198,7 @@ class BayesOptimizer:
     # -------------------------------------------------------------------
     def optimise(self):
         print("=" * 60)
-        print("  Bayesian Optimisation — searching for best architecture")
+        print("  Bayesian Optimisation - searching for best architecture and batch size")
         print("=" * 60)
 
         for iteration in range(1, self.n_iterations + 1):
@@ -220,7 +228,8 @@ class BayesOptimizer:
             print(
                 f"\n[{iteration:>2}/{self.n_iterations}] {how} | "
                 f"layers={config['num_layers']}, nodes=[{nodes_str}], "
-                f"lr={config['lr']:.4f}, epochs={config['epochs']}"
+                f"lr={config['lr']:.4f}, epochs={config['epochs']}, "
+                f"batch_size={config['batch_size']}"
             )
             score, trainer = self._evaluate(config)
             print(f"  → Val accuracy: {score:.4f}")
@@ -236,6 +245,7 @@ class BayesOptimizer:
         print(f"    Nodes/layer   : [{best_nodes_str}]")
         print(f"    Learning rate : {best['config']['lr']:.5f}")
         print(f"    Epochs        : {best['config']['epochs']}")
+        print(f"    Batch size    : {best['config']['batch_size']}")
         print(f"    Val accuracy  : {best['score']:.4f}")
         print("=" * 60)
         return best['config'], best['score'], best['trainer']

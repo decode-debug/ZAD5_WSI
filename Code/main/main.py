@@ -34,7 +34,7 @@ def train_with_config(num_layers, nodes, lr, epochs, batch_size=32, config=0):
     activations = ['relu'] * num_layers + ['softmax']
     if config == 0:
         print(f"\nArchitecture: {' -> '.join(str(s) for s in layer_sizes)}")
-        print(f"Epochs: {epochs}  |  Learning rate: {lr}\n")
+        print(f"Epochs: {epochs}  |  Learning rate: {lr}  |  Batch size: {batch_size}\n")
 
     model   = Model(layer_sizes, activations)
     trainer = TrainModel(model, learning_rate=lr)
@@ -97,6 +97,7 @@ if __name__ == "__main__":
         best_test_acc = max(test_accs)
         print(f"Val  Accuracy (from optimisation): {best_val_acc:.4f}")
         print(f"Test Accuracy                    : {best_test_acc:.4f}")
+        print(f"Batch size                       : {best_config['batch_size']}")
 
         cfg = best_config
         hidden = [cfg[f'nodes_{i+1}'] for i in range(cfg['num_layers'])]
