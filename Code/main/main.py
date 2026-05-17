@@ -139,10 +139,39 @@ if __name__ == "__main__":
         raw_batch_size = input("Batch size     [32]: ").strip()
         batch_size = int(raw_batch_size) if raw_batch_size else 32
 
-        final_trainer, layer_sizes, activations = train_with_config(
-            num_hidden_layers, nodes_per_layer, lr, epochs, batch_size=batch_size
-        )
+        raw_runs = input("Number of training runs [1]: ").strip()
+        n_runs   = int(raw_runs) if raw_runs else 1
 
+        if n_runs == 1:
+            final_trainer, layer_sizes, activations = train_with_config(
+                num_hidden_layers, nodes_per_layer, lr, epochs, batch_size=batch_size
+            )
+        else:
+            print(f"\nTraining {n_runs}× — keeping best by val accuracy...")
+            best_val_acc_manual = -1
+            for run in range(1, n_runs + 1):
+                print(f"\n--- Run {run}/{n_runs} ---")
+                trainer, layer_sizes, activations = train_with_config(
+                    num_hidden_layers, nodes_per_layer, lr, epochs,
+                    batch_size=batch_size, config=1,
+                )
+                acc = trainer.model.accuracy(X_val, y_val)
+                print(f"Val Accuracy: {acc:.4f}")
+                if acc > best_val_acc_manual:
+                    best_val_acc_manual = acc
+                    final_trainer       = trainer
+            best_test_acc_manual = final_trainer.model.accuracy(X_test, y_test)
+            print(f"\nBest Val  Accuracy (of {n_runs} runs): {best_val_acc_manual:.4f}")
+            print(f"Test Accuracy                        : {best_test_acc_manual:.4f}")
+
+        # --- Optional: save model to disk ---
+        raw_save = input("\nSave best model to disk? [y/N]: ").strip().lower()
+        if raw_save == 'y':
+            MODELS_DIR = ROOT_DIR / 'saved_models'
+            MODELS_DIR.mkdir(exist_ok=True)
+            save_path = MODELS_DIR / 'manual_best_model'
+            final_trainer.model.save(str(save_path))
+            print(f"Model saved to {save_path}.npz")
     # --- Optional: show Plotly visualizations ---
     raw_viz = input("\nShow Plotly visualizations? [y/N]: ").strip().lower()
     if raw_viz == 'y':
