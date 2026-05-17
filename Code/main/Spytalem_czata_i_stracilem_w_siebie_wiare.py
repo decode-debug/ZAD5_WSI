@@ -23,7 +23,7 @@ def main():
 
     print(f"Training set size: {X_train.shape[0]} samples")
     print(f"Validation set size: {X_val.shape[0]} samples")
-
+    print(f"Test set size: {X_test.shape[0]} samples")
     # ----------------------------------------------------------------------
     # 3. Define the Model
     # ----------------------------------------------------------------------
@@ -55,6 +55,8 @@ def main():
     # Checking validation accuracy shows true generalization performance
     val_score = model.score(X_val, y_val)
     print(f"Validation Accuracy: {val_score * 100:.2f}%")
+    test_score = model.score(X_test, y_test)
+    print(f"Test Accuracy:       {test_score * 100:.2f}%")
 
 if __name__ == "__main__":
     main()
