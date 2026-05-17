@@ -155,6 +155,7 @@ class BayesOptimizer:
             'num_layers': np.random.randint(*self.bounds['num_layers']),
             'lr'        : np.random.uniform(*self.bounds['lr']),
             'epochs'    : np.random.randint(*self.bounds['epochs']),
+            'batch_size': np.random.randint(16, 129),
         }
         for i in range(1, self.max_layers + 1):
             cfg[f'nodes_{i}'] = np.random.randint(*self.bounds['nodes'])
@@ -177,6 +178,7 @@ class BayesOptimizer:
             self.X_train, self.y_train,
             self.X_val,   self.y_val,
             epochs=config['epochs'],
+            batch_size=config.get('batch_size', 32),
             verbose=False,   # suppress per-epoch output during search
         )
         score = trainer.model.accuracy(self.X_val, self.y_val)

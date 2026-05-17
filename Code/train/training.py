@@ -72,20 +72,46 @@ class TrainModel:
 
         return loss
 
-    def train(self, X_train, y_train, X_val, y_val, epochs, verbose=True):
-        """Train the model for a specified number of epochs."""
+    def train(self, X_train, y_train, X_val, y_val, epochs, batch_size=32, verbose=True):
+        """
+        Train the model for a specified number of epochs using Mini-Batch Gradient Descent.
+        If batch_size is None, it defaults to Full-Batch Gradient Descent.
+        """
         self.loss_history    = []
         self.val_acc_history = []
+        num_samples = X_train.shape[0]
 
         for epoch in range(1, epochs + 1):
-            loss = self.gradient_descent(X_train, y_train)
+            # 1. Shuffle data at the beginning of each epoch to avoid ordering bias
+            indices = np.arange(num_samples)
+            np.random.shuffle(indices)
+            X_shuffled = X_train[indices]
+            y_shuffled = y_train[indices]
 
+            epoch_losses = []
+
+            # If batch_size is None, process the whole dataset at once (Full-Batch)
+            current_batch_size = batch_size if batch_size is not None else num_samples
+
+            # 2. Loop over mini-batches
+            for i in range(0, num_samples, current_batch_size):
+                X_batch = X_shuffled[i : i + current_batch_size]
+                y_batch = y_shuffled[i : i + current_batch_size]
+
+                # Perform a single weight update step based on this batch
+                batch_loss = self.gradient_descent(X_batch, y_batch)
+                epoch_losses.append(batch_loss)
+
+            # Compute the average loss for the entire epoch
+            epoch_loss = np.mean(epoch_losses)
+
+            # 3. Validation and logging every 5 epochs
             if epoch % 5 == 0:
                 val_acc = self.model.accuracy(X_val, y_val)
-                self.loss_history.append(round(loss, 5))
+                self.loss_history.append(round(epoch_loss, 5))
                 self.val_acc_history.append(round(val_acc, 5))
                 if verbose:
-                    print(f"Epoch {epoch:>4}/{epochs} | Loss: {loss:.4f} | Val Accuracy: {val_acc:.4f}")
+                    print(f"Epoch {epoch:>4}/{epochs} | Loss: {epoch_loss:.4f} | Val Accuracy: {val_acc:.4f}")
 
         if verbose:
             print("\nTraining complete.")

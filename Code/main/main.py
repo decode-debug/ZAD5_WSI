@@ -24,7 +24,7 @@ input_size  = X_train.shape[1]    # 64 pixel features
 output_size = 10                  # digits 0-9
 
 
-def train_with_config(num_layers, nodes, lr, epochs, config=0):
+def train_with_config(num_layers, nodes, lr, epochs, batch_size=32, config=0):
     """Build a model from the given config, train it, print test accuracy, return trainer."""
     if isinstance(nodes, list):
         hidden_sizes = nodes
@@ -38,7 +38,7 @@ def train_with_config(num_layers, nodes, lr, epochs, config=0):
 
     model   = Model(layer_sizes, activations)
     trainer = TrainModel(model, learning_rate=lr)
-    trainer.train(X_train, y_train, X_val, y_val, epochs=epochs, verbose=False)
+    trainer.train(X_train, y_train, X_val, y_val, epochs=epochs, batch_size=batch_size, verbose=False)
 
     test_acc = trainer.model.accuracy(X_test, y_test)
     print(f"\nTest Accuracy: {test_acc:.4f}")
@@ -91,7 +91,7 @@ if __name__ == "__main__":
         for _ in range(5):
             best_nodes = [best_config[f'nodes_{i+1}'] for i in range(best_config['num_layers'])]
             trainer, _, _ = train_with_config(
-                best_config['num_layers'], best_nodes, best_config['lr'], best_config['epochs'], config=1
+                best_config['num_layers'], best_nodes, best_config['lr'], best_config['epochs'], batch_size=best_config.get('batch_size', 32), config=1
             )
             test_accs.append(trainer.model.accuracy(X_test, y_test))
         best_test_acc = max(test_accs)
@@ -123,8 +123,11 @@ if __name__ == "__main__":
         epochs = int(raw_epochs)   if raw_epochs else 100
         lr     = float(raw_lr)     if raw_lr     else 0.01
 
+        raw_batch_size = input("Batch size     [32]: ").strip()
+        batch_size = int(raw_batch_size) if raw_batch_size else 32
+
         final_trainer, layer_sizes, activations = train_with_config(
-            num_hidden_layers, nodes_per_layer, lr, epochs
+            num_hidden_layers, nodes_per_layer, lr, epochs, batch_size=batch_size
         )
 
     # --- Optional: show Plotly visualizations ---
