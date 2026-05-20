@@ -45,9 +45,14 @@ class TrainModel:
             # Update error for the next layer down (if not at input layer)
             if i > 0:
                 W, _ = self.model.layers[i]._get_weights()
-                _, z_prev, _ = self.model.cache[i - 1]
-
-                error = (error @ W) * (z_prev > 0)
+                _, z_prev, a_prev = self.model.cache[i - 1]
+                act = self.model.layers[i - 1].activation_name
+                if act == 'sigmoid':
+                    sig = 1.0 / (1.0 + np.exp(-np.clip(z_prev, -500, 500)))
+                    deriv = sig * (1.0 - sig)
+                else:  # relu
+                    deriv = (z_prev > 0)
+                error = (error @ W) * deriv
 
         return gradients
 

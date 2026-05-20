@@ -25,6 +25,7 @@ MAX_VISIBLE_NODES = 8
 LAYER_COLORS = {
     'input':   '#636EFA',   # blue
     'relu':    '#00CC96',   # green
+    'sigmoid': '#AB63FA',   # purple
     'softmax': '#FFA15A',   # orange
 }
 

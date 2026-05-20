@@ -24,16 +24,34 @@ input_size  = X_train.shape[1]    # 64 pixel features
 output_size = 10                  # digits 0-9
 
 
-def train_with_config(num_layers, nodes, lr, epochs, batch_size=32, config=0):
+def _ask_activations(num_hidden_layers: int) -> list[str]:
+    """Ask user for activation per hidden layer. Supports 'relu', 'sigmoid', or mixed."""
+    print(f"  Activations for {num_hidden_layers} hidden layer(s).")
+    print("  Options: 'relu', 'sigmoid', or mixed (e.g. 'relu sigmoid relu')")
+    raw = input("  Activation(s) [relu]: ").strip().lower()
+    if not raw:
+        return ['relu'] * num_hidden_layers
+    parts = raw.split()
+    valid = {'relu', 'sigmoid'}
+    parts = [p if p in valid else 'relu' for p in parts]
+    if len(parts) == 1:
+        return parts * num_hidden_layers
+    return (parts + [parts[-1]] * num_hidden_layers)[:num_hidden_layers]
+
+
+def train_with_config(num_layers, nodes, lr, epochs, batch_size=32, config=0, hidden_activations=None):
     """Build a model from the given config, train it, print test accuracy, return trainer."""
     if isinstance(nodes, list):
         hidden_sizes = nodes
     else:
         hidden_sizes = [nodes] * num_layers
     layer_sizes = [input_size] + hidden_sizes + [output_size]
-    activations = ['relu'] * num_layers + ['softmax']
+    if hidden_activations is None:
+        hidden_activations = ['relu'] * num_layers
+    activations = hidden_activations + ['softmax']
     if config == 0:
         print(f"\nArchitecture: {' -> '.join(str(s) for s in layer_sizes)}")
+        print(f"Activations : {' -> '.join(activations)}")
         print(f"Epochs: {epochs}  |  Learning rate: {lr}  |  Batch size: {batch_size}\n")
 
     model   = Model(layer_sizes, activations)
@@ -139,12 +157,15 @@ if __name__ == "__main__":
         raw_batch_size = input("Batch size     [32]: ").strip()
         batch_size = int(raw_batch_size) if raw_batch_size else 32
 
+        hidden_activations = _ask_activations(num_hidden_layers)
+
         raw_runs = input("Number of training runs [1]: ").strip()
         n_runs   = int(raw_runs) if raw_runs else 1
 
         if n_runs == 1:
             final_trainer, layer_sizes, activations = train_with_config(
-                num_hidden_layers, nodes_per_layer, lr, epochs, batch_size=batch_size
+                num_hidden_layers, nodes_per_layer, lr, epochs,
+                batch_size=batch_size, hidden_activations=hidden_activations,
             )
         else:
             print(f"\nTraining {n_runs}× — keeping best by val accuracy...")
@@ -153,7 +174,7 @@ if __name__ == "__main__":
                 print(f"\n--- Run {run}/{n_runs} ---")
                 trainer, layer_sizes, activations = train_with_config(
                     num_hidden_layers, nodes_per_layer, lr, epochs,
-                    batch_size=batch_size, config=1,
+                    batch_size=batch_size, config=1, hidden_activations=hidden_activations,
                 )
                 acc = trainer.model.accuracy(X_val, y_val)
                 print(f"Val Accuracy: {acc:.4f}")

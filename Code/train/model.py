@@ -60,6 +60,10 @@ class Model:
         """ReLU activation function: f(z) = max(0, z)"""
         return np.maximum(0, z)
 
+    def _sigmoid(self, z):
+        """Sigmoid activation function: f(z) = 1 / (1 + exp(-z))"""
+        return 1.0 / (1.0 + np.exp(-np.clip(z, -500, 500)))
+
     def _softmax(self, z):
         """Softmax activation function for classification."""
         # Shift the input to prevent numerical overflow
@@ -85,6 +89,8 @@ class Model:
             # 2. Activation equation (non-linear): A = g(Z)
             if layer.activation_name == 'softmax':
                 A = self._softmax(Z)
+            elif layer.activation_name == 'sigmoid':
+                A = self._sigmoid(Z)
             else:
                 A = self._relu(Z)
 
