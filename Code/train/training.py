@@ -115,3 +115,132 @@ class TrainModel:
 
         if verbose:
             print("\nTraining complete.")
+
+
+class QuasiNewtonTrainer:
+    """
+    Trains a Model using the L-BFGS-B quasi-Newton optimizer (via scipy).
+
+    L-BFGS builds a low-rank approximation of the inverse Hessian from the
+    last m gradient differences, which gives super-linear convergence on smooth
+    objectives — typically far fewer iterations than plain SGD/mini-batch GD.
+
+    Usage
+    -----
+        trainer = QuasiNewtonTrainer(model)
+        trainer.train(X_train, y_train, X_val, y_val, max_iter=300)
+        acc = trainer.model.accuracy(X_test, y_test)
+
+    The attributes ``loss_history`` and ``val_acc_history`` are filled at every
+    L-BFGS callback step, so Plotly visualisations work identically to
+    ``TrainModel``.
+    """
+
+    def __init__(self, model: Model):
+        self.model           = model
+        self.loss_history    = []
+        self.val_acc_history = []
+
+    # ------------------------------------------------------------------
+    # Weight vector <-> model parameter conversion
+    # ------------------------------------------------------------------
+
+    def _get_flat_weights(self) -> np.ndarray:
+        """Concatenate all W and b arrays into a single 1-D float64 vector."""
+        parts = []
+        for layer in self.model.layers:
+            W, b = layer._get_weights()
+            parts.append(W.ravel())
+            parts.append(b.ravel())
+        return np.concatenate(parts).astype(np.float64)
+
+    def _set_flat_weights(self, flat: np.ndarray):
+        """Write a flat parameter vector back into the model layers."""
+        idx = 0
+        for layer in self.model.layers:
+            W, b = layer._get_weights()
+            nW, nb = W.size, b.size
+            layer._set_weights(
+                flat[idx        : idx + nW     ].reshape(W.shape),
+                flat[idx + nW   : idx + nW + nb].reshape(b.shape),
+            )
+            idx += nW + nb
+
+    # ------------------------------------------------------------------
+    # Loss + gradient as a single function (required by scipy.optimize)
+    # ------------------------------------------------------------------
+
+    def _loss_and_grad(self, flat: np.ndarray, X: np.ndarray, y: np.ndarray):
+        """Return (scalar loss, flat gradient vector) for the given weight vector."""
+        self._set_flat_weights(flat)
+
+        # Forward pass
+        y_pred = self.model._forward(X)
+
+        # Cross-entropy loss
+        n = len(y)
+        correct_probs = y_pred[np.arange(n), y]
+        loss = float(-np.mean(np.log(correct_probs + 1e-9)))
+
+        # Backward pass — same logic as TrainModel._backward
+        error = y_pred.copy()
+        error[np.arange(n), y] -= 1
+        error /= n
+
+        grad_parts = [None] * len(self.model.layers)
+        for i in reversed(range(len(self.model.layers))):
+            a_in, z, a_out = self.model.cache[i]
+            dW = (error.T @ a_in).ravel()
+            db = np.sum(error, axis=0).ravel()
+            grad_parts[i] = np.concatenate([dW, db])
+            if i > 0:
+                W, _ = self.model.layers[i]._get_weights()
+                _, z_prev, _ = self.model.cache[i - 1]
+                error = (error @ W) * (z_prev > 0)
+
+        grad_flat = np.concatenate(grad_parts).astype(np.float64)
+        return loss, grad_flat
+
+    # ------------------------------------------------------------------
+    # Training
+    # ------------------------------------------------------------------
+
+    def train(self, X_train, y_train, X_val, y_val, max_iter=300, verbose=True):
+        """
+        Train using the full-batch L-BFGS-B quasi-Newton algorithm.
+
+        Parameters
+        ----------
+        max_iter : int
+            Maximum number of L-BFGS-B iterations.
+        verbose : bool
+            Print result after optimisation.
+        """
+        from scipy.optimize import minimize
+
+        self.loss_history    = []
+        self.val_acc_history = []
+
+        x0 = self._get_flat_weights()
+        result = minimize(
+            fun=self._loss_and_grad,
+            x0=x0,
+            args=(X_train, y_train),
+            method='L-BFGS-B',
+            jac=True,
+            options={'maxiter': max_iter, 'ftol': 1e-12, 'gtol': 1e-7},
+        )
+        self._set_flat_weights(result.x)
+
+        # Record a single history entry for compatibility with Plotly visualisations
+        y_pred = self.model._forward(X_train)
+        n      = len(y_train)
+        loss   = float(-np.mean(np.log(y_pred[np.arange(n), y_train] + 1e-9)))
+        val_acc = float(self.model.accuracy(X_val, y_val))
+        self.loss_history.append(round(loss, 5))
+        self.val_acc_history.append(round(val_acc, 5))
+
+        if verbose:
+            print(f"L-BFGS-B: {result.message}")
+            print(f"Iterations : {result.nit}  |  Loss: {loss:.4f}  |  Val Accuracy: {val_acc:.4f}")
+            print("Training complete.")

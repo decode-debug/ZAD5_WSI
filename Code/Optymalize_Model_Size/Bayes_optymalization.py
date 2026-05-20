@@ -27,7 +27,7 @@ if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
 from Code.train.model import Model
-from Code.train.training import TrainModel
+from Code.train.training import TrainModel, QuasiNewtonTrainer
 
 
 # -----------------------------------------------------------------------
@@ -246,6 +246,128 @@ class BayesOptimizer:
         print(f"    Learning rate : {best['config']['lr']:.5f}")
         print(f"    Epochs        : {best['config']['epochs']}")
         print(f"    Batch size    : {best['config']['batch_size']}")
+        print(f"    Val accuracy  : {best['score']:.4f}")
+        print("=" * 60)
+        return best['config'], best['score'], best['trainer']
+
+
+# -----------------------------------------------------------------------
+# Bayesian Optimisation for Quasi-Newton (L-BFGS-B) trainer
+# Search space: architecture + max_iter
+# No learning-rate or batch-size — L-BFGS-B uses the full dataset.
+# -----------------------------------------------------------------------
+class BayesOptimizerQN:
+    def __init__(
+        self,
+        X_train, y_train,
+        X_val,   y_val,
+        # Search space bounds
+        layers_range   = (1, 4),     # min/max hidden layers
+        nodes_range    = (16, 256),  # min/max nodes per hidden layer
+        max_iter_range = (50, 500),  # L-BFGS-B iteration budget
+        # Budget
+        n_random_starts = 5,
+        n_iterations    = 20,
+        n_candidates    = 200,
+    ):
+        self.X_train, self.y_train = X_train, y_train
+        self.X_val,   self.y_val   = X_val,   y_val
+
+        self.bounds = {
+            'num_layers' : layers_range,
+            'nodes'      : nodes_range,
+            'max_iter'   : max_iter_range,
+        }
+        self.max_layers      = layers_range[1]
+        self.n_random_starts = n_random_starts
+        self.n_iterations    = n_iterations
+        self.n_candidates    = n_candidates
+
+        self.gp      = GaussianProcess()
+        self.history = []
+
+    def _encode(self, config):
+        lo_l,  hi_l  = self.bounds['num_layers']
+        lo_n,  hi_n  = self.bounds['nodes']
+        lo_mi, hi_mi = self.bounds['max_iter']
+
+        vec = [
+            (config['num_layers'] - lo_l)  / max(hi_l  - lo_l,  1),
+            (config['max_iter']   - lo_mi) / max(hi_mi - lo_mi, 1),
+        ]
+        for i in range(1, self.max_layers + 1):
+            vec.append((config[f'nodes_{i}'] - lo_n) / max(hi_n - lo_n, 1))
+        return np.array(vec)
+
+    def _random_config(self):
+        cfg = {
+            'num_layers' : np.random.randint(*self.bounds['num_layers']),
+            'max_iter'   : np.random.randint(*self.bounds['max_iter']),
+        }
+        for i in range(1, self.max_layers + 1):
+            cfg[f'nodes_{i}'] = np.random.randint(*self.bounds['nodes'])
+        return cfg
+
+    def _evaluate(self, config):
+        input_size  = self.X_train.shape[1]
+        output_size = 10
+
+        hidden_sizes = [config[f'nodes_{i+1}'] for i in range(config['num_layers'])]
+        layer_sizes  = [input_size] + hidden_sizes + [output_size]
+        activations  = ['relu'] * config['num_layers'] + ['softmax']
+
+        model   = Model(layer_sizes, activations)
+        trainer = QuasiNewtonTrainer(model)
+        trainer.train(
+            self.X_train, self.y_train,
+            self.X_val,   self.y_val,
+            max_iter = config['max_iter'],
+            verbose  = False,
+        )
+        score = trainer.model.accuracy(self.X_val, self.y_val)
+        return score, trainer
+
+    def optimise(self):
+        print("=" * 60)
+        print("  Bayesian Optimisation (Quasi-Newton) - searching for best config")
+        print("=" * 60)
+
+        for iteration in range(1, self.n_iterations + 1):
+            if iteration <= self.n_random_starts:
+                config = self._random_config()
+                how    = "random"
+            else:
+                candidates = [self._random_config() for _ in range(self.n_candidates)]
+                encoded    = np.array([self._encode(c) for c in candidates])
+                X_hist = [self._encode(h['config']) for h in self.history]
+                y_hist = [h['score']                for h in self.history]
+                self.gp.fit(X_hist, y_hist)
+                means, stds = self.gp.predict(encoded)
+                ucb_scores  = acquisition_ucb(means, stds)
+                config      = candidates[int(np.argmax(ucb_scores))]
+                how         = "GP-guided"
+
+            nodes_str = ', '.join(
+                str(config[f'nodes_{i+1}']) for i in range(config['num_layers'])
+            )
+            print(
+                f"\n[{iteration:>2}/{self.n_iterations}] {how} | "
+                f"layers={config['num_layers']}, nodes=[{nodes_str}], "
+                f"max_iter={config['max_iter']}"
+            )
+            score, trainer = self._evaluate(config)
+            print(f"  \u2192 Val accuracy: {score:.4f}")
+            self.history.append({'config': config, 'score': score, 'trainer': trainer})
+
+        best = max(self.history, key=lambda h: h['score'])
+        print("\n" + "=" * 60)
+        print("  Best configuration found (Quasi-Newton):")
+        best_nodes_str = ', '.join(
+            str(best['config'][f'nodes_{i+1}']) for i in range(best['config']['num_layers'])
+        )
+        print(f"    Hidden layers : {best['config']['num_layers']}")
+        print(f"    Nodes/layer   : [{best_nodes_str}]")
+        print(f"    Max iter      : {best['config']['max_iter']}")
         print(f"    Val accuracy  : {best['score']:.4f}")
         print("=" * 60)
         return best['config'], best['score'], best['trainer']

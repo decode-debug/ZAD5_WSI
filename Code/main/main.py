@@ -7,9 +7,9 @@ if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
 from Code.train.model import Model
-from Code.train.training import TrainModel
+from Code.train.training import TrainModel, QuasiNewtonTrainer
 from Code.Import_training_data.import_traing_data import DataLoader
-from Code.Optymalize_Model_Size.Bayes_optymalization import BayesOptimizer
+from Code.Optymalize_Model_Size.Bayes_optymalization import BayesOptimizer, BayesOptimizerQN
 from Code.Visualization.network_visualization import show_architecture, show_architecture_3d, show_training_progress
 
 # ----------------------------------------------------------------------
@@ -67,9 +67,11 @@ def visualize(trainer, layer_sizes, activations):
 # ----------------------------------------------------------------------
 if __name__ == "__main__":
     print("Select mode:")
-    print("  1 - Manual  (enter architecture yourself)")
-    print("  2 - Auto    (Bayesian optimisation finds the best config)")
-    mode = input("Choice [1/2]: ").strip()
+    print("  1 - Manual      (SGD, enter architecture yourself)")
+    print("  2 - Bayes+SGD   (Bayesian optimisation finds best SGD config)")
+    print("  3 - Quasi-Newton (L-BFGS-B, enter architecture yourself)")
+    print("  4 - Bayes+QN    (Bayesian optimisation finds best L-BFGS-B config)")
+    mode = input("Choice [1/2/3/4]: ").strip()
 
     if mode == "2":
         # --- Bayesian optimisation ---
@@ -117,7 +119,7 @@ if __name__ == "__main__":
         activations = ['relu'] * cfg['num_layers'] + ['softmax']
         final_trainer = best_trainer
 
-    else:
+    elif mode == "1":
         # --- Manual mode ---
         num_hidden_layers = int(input("Number of hidden layers: "))
 
@@ -172,6 +174,99 @@ if __name__ == "__main__":
             save_path = MODELS_DIR / 'manual_best_model'
             final_trainer.model.save(str(save_path))
             print(f"Model saved to {save_path}.npz")
+    elif mode == "3":
+        # --- Quasi-Newton (L-BFGS-B) mode ---
+        num_hidden_layers = int(input("Number of hidden layers: "))
+
+        raw_nodes = input(
+            f"Nodes per layer (e.g. '128 64 32' for different sizes, or single '64' for all equal): "
+        ).strip()
+        parts = raw_nodes.split()
+        if len(parts) == 1:
+            nodes_per_layer = int(parts[0])
+        else:
+            nodes_per_layer = [int(x) for x in parts]
+            if len(nodes_per_layer) != num_hidden_layers:
+                nodes_per_layer = (
+                    nodes_per_layer + [nodes_per_layer[-1]] * num_hidden_layers
+                )[:num_hidden_layers]
+
+        raw_iter = input("Max L-BFGS-B iterations [300]: ").strip()
+        max_iter = int(raw_iter) if raw_iter else 300
+
+        if isinstance(nodes_per_layer, list):
+            hidden_sizes = nodes_per_layer
+        else:
+            hidden_sizes = [nodes_per_layer] * num_hidden_layers
+        layer_sizes = [input_size] + hidden_sizes + [output_size]
+        activations = ['relu'] * num_hidden_layers + ['softmax']
+
+        raw_runs = input("Number of training runs [1]: ").strip()
+        n_runs   = int(raw_runs) if raw_runs else 1
+
+        print(f"\nArchitecture: {' -> '.join(str(s) for s in layer_sizes)}")
+        print(f"Max iterations: {max_iter}  |  Runs: {n_runs}\n")
+
+        best_val_acc_qn = -1
+        for run in range(1, n_runs + 1):
+            if n_runs > 1:
+                print(f"--- Run {run}/{n_runs} ---")
+            model   = Model(layer_sizes, activations)
+            trainer = QuasiNewtonTrainer(model)
+            trainer.train(X_train, y_train, X_val, y_val, max_iter=max_iter)
+            acc = trainer.model.accuracy(X_val, y_val)
+            if n_runs > 1:
+                print(f"Val Accuracy: {acc:.4f}")
+            if acc > best_val_acc_qn:
+                best_val_acc_qn = acc
+                final_trainer   = trainer
+
+        if n_runs > 1:
+            print(f"\nBest Val Accuracy (of {n_runs} runs): {best_val_acc_qn:.4f}")
+
+        test_acc = final_trainer.model.accuracy(X_test, y_test)
+        print(f"\nTest Accuracy: {test_acc:.4f}")
+
+        # --- Optional: save model to disk ---
+        raw_save = input("\nSave model to disk? [y/N]: ").strip().lower()
+        if raw_save == 'y':
+            MODELS_DIR = ROOT_DIR / 'saved_models'
+            MODELS_DIR.mkdir(exist_ok=True)
+            save_path = MODELS_DIR / 'qn_best_model'
+            final_trainer.model.save(str(save_path))
+            print(f"Model saved to {save_path}.npz")
+
+    elif mode == "4":
+        # --- Bayesian optimisation + Quasi-Newton ---
+        raw_iter = input("Number of optimisation iterations [20]: ").strip()
+        n_iter   = int(raw_iter) if raw_iter else 20
+
+        optimizer = BayesOptimizerQN(
+            X_train, y_train,
+            X_val,   y_val,
+            n_random_starts = max(5, n_iter // 5),
+            n_iterations    = n_iter,
+        )
+        best_config, best_val_acc, best_trainer = optimizer.optimise()
+
+        best_test_acc = best_trainer.model.accuracy(X_test, y_test)
+        print(f"\nTest Accuracy: {best_test_acc:.4f}")
+
+        # --- Optional: save model to disk ---
+        raw_save = input("\nSave best model to disk? [y/N]: ").strip().lower()
+        if raw_save == 'y':
+            MODELS_DIR = ROOT_DIR / 'saved_models'
+            MODELS_DIR.mkdir(exist_ok=True)
+            save_path = MODELS_DIR / 'bayes_qn_best_model'
+            best_trainer.model.save(str(save_path))
+            print(f"Model saved to {save_path}.npz")
+
+        cfg         = best_config
+        hidden      = [cfg[f'nodes_{i+1}'] for i in range(cfg['num_layers'])]
+        layer_sizes = [input_size] + hidden + [output_size]
+        activations = ['relu'] * cfg['num_layers'] + ['softmax']
+        final_trainer = best_trainer
+
     # --- Optional: show Plotly visualizations ---
     raw_viz = input("\nShow Plotly visualizations? [y/N]: ").strip().lower()
     if raw_viz == 'y':
