@@ -19,6 +19,7 @@ class TrainModel:
 
     def _cross_entropy_loss(self, y_pred, y_true):
         n = len(y_true)
+
         correct_class_probs = y_pred[np.arange(n), y_true]
         loss = -np.mean(np.log(correct_class_probs + 1e-9))
         return loss
