@@ -5,7 +5,6 @@ from sklearn.model_selection import train_test_split
 from scipy.ndimage import maximum_filter
 
 class DataLoader:
-    # Class variables to store the dataset splits
     X_train = None
     y_train = None
     X_val = None
@@ -139,7 +138,7 @@ class DataLoader:
             augmented_labels.append(label)
 
             # 2. Dropout
-            dropout_img = DataLoader.pixel_dropout(img, drop_count=2)
+            dropout_img = DataLoader.pixel_dropout(img, drop_count=1)
             augmented_images.append(dropout_img)
             augmented_labels.append(label)
 
